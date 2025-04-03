@@ -1052,16 +1052,19 @@ get_tcp_move(rpc_tcp_state state_from, rpc_tcp_state state_to,
  */
 te_bool
 if_special_tcp_move(rpc_tcp_state state_from, rpc_tcp_state state_to,
-                   rpc_tcp_state state_cur)
+                    rpc_tcp_state state_cur)
 {
-    return ((state_to == RPC_TCP_SYN_RECV &&
-             state_from == RPC_TCP_LISTEN &&
+    return ((state_from == RPC_TCP_LISTEN &&
+             state_to == RPC_TCP_SYN_RECV &&
              state_cur == RPC_TCP_LISTEN) ||
-            (state_to == RPC_TCP_TIME_WAIT &&
-             state_from == RPC_TCP_FIN_WAIT2 &&
+            (state_from == RPC_TCP_FIN_WAIT1 &&
+             state_to == RPC_TCP_TIME_WAIT &&
              state_cur == RPC_TCP_CLOSE) ||
-            (state_to == RPC_TCP_TIME_WAIT &&
-             state_from == RPC_TCP_CLOSING &&
+            (state_from == RPC_TCP_FIN_WAIT2 &&
+             state_to == RPC_TCP_TIME_WAIT &&
+             state_cur == RPC_TCP_CLOSE) ||
+            (state_from == RPC_TCP_CLOSING &&
+             state_to == RPC_TCP_TIME_WAIT &&
              state_cur == RPC_TCP_CLOSE));
 }
 
