@@ -1155,6 +1155,38 @@ extern sigset_t rpcs_received_signals;
 extern tarpc_siginfo_t last_siginfo;
 
 /**
+ * Macros to define one of two syscall function wrappers content. The macros
+ * should be used together and are disigned to have abbility to add arguments
+ * in syscall calling.
+ *
+ * @param _lib_postfix Postfix in wrapper name (empty or "_dl")
+ * @param _lib_flag    Flags to resolve function name (from tarpc_lib_flags)
+ * @param _lib_name    Name of the library in error message
+ * @param _name        Function name (bind, connect, etc.)
+ * @param _rettype     Return type (according to man _name)
+ * @param _args        Arguments list (according to man _name)
+ * @param ...          Values of arguments
+ */
+#define TARPC_DECLARE_SYSCALL_WRAPPER_FUNC_BEGIN(_lib_postfix, _lib_flag,   \
+                                                 _lib_name, _name,          \
+                                                 _rettype, _args, ...)      \
+_rettype _name##_te_wrap_syscall##_lib_postfix _args                        \
+{                                                                           \
+    static api_func syscall_func = NULL;                                    \
+                                                                            \
+    if (syscall_func == NULL &&                                             \
+        tarpc_find_func(_lib_flag, "syscall", &syscall_func) != 0)          \
+    {                                                                       \
+        syscall_func = NULL;                                                \
+        ERROR("Failed to find function \"syscall\" in "_lib_name);          \
+        return -1;                                                          \
+    }                                                                       \
+    return (_rettype)syscall_func(SYS_##_name, ##__VA_ARGS__
+
+#define TARPC_DECLARE_SYSCALL_WRAPPER_FUNC_END                              \
+                                                            );              \
+}
+/**
  * Macro to define syscall function wrapper content.
  *
  * @param _name     Function name (bind, connect, etc.)
@@ -1163,33 +1195,15 @@ extern tarpc_siginfo_t last_siginfo;
  * @param ...       Values of arguments
  */
 #define TARPC_SYSCALL_WRAPPER(_name, _rettype, _args, ...)                  \
-_rettype _name##_te_wrap_syscall _args                                      \
-{                                                                           \
-    static api_func syscall_func = NULL;                                    \
+TARPC_DECLARE_SYSCALL_WRAPPER_FUNC_BEGIN(, TARPC_LIB_USE_LIBC,              \
+                                         "libc", _name, _rettype,           \
+                                         _args, ##__VA_ARGS__)              \
+TARPC_DECLARE_SYSCALL_WRAPPER_FUNC_END                                      \
                                                                             \
-    if (syscall_func == NULL &&                                             \
-        tarpc_find_func(TARPC_LIB_USE_LIBC, "syscall", &syscall_func) != 0) \
-    {                                                                       \
-        syscall_func = NULL;                                                \
-        ERROR("Failed to find function \"syscall\" in libc");               \
-        return -1;                                                          \
-    }                                                                       \
-    return (_rettype)syscall_func(SYS_##_name, ##__VA_ARGS__);              \
-}                                                                           \
-                                                                            \
-_rettype _name##_te_wrap_syscall_dl _args                                   \
-{                                                                           \
-    static api_func syscall_func = NULL;                                    \
-                                                                            \
-    if (syscall_func == NULL &&                                             \
-        tarpc_find_func(0, "syscall", &syscall_func) != 0)                  \
-    {                                                                       \
-        syscall_func = NULL;                                                \
-        ERROR("Failed to find function \"syscall\" in dynamic lib");        \
-        return -1;                                                          \
-    }                                                                       \
-    return (_rettype)syscall_func(SYS_##_name, ##__VA_ARGS__);              \
-}
+TARPC_DECLARE_SYSCALL_WRAPPER_FUNC_BEGIN(_dl, TARPC_LIB_DEFAULT,            \
+                                         "dynamic lib", _name, _rettype,    \
+                                         _args, ##__VA_ARGS__)              \
+TARPC_DECLARE_SYSCALL_WRAPPER_FUNC_END
 
 /**
  * Type of a hook function called just before FD is closed.
