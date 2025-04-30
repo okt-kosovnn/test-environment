@@ -12177,8 +12177,10 @@ TARPC_SYSCALL_WRAPPER(poll, int, (struct pollfd *a, nfds_t b, int c), a, b, c)
 #endif
 
 #ifdef SYS_ppoll
-TARPC_SYSCALL_WRAPPER(ppoll, int, (struct pollfd *a, nfds_t b,
-                      const struct timespec *c, const sigset_t *d), a, b, c, d)
+TARPC_SYSCALL_WRAPPER_WITH_SIGSET(ppoll, int,
+                                  (struct pollfd *a, nfds_t b,
+                                   const struct timespec *c, const sigset_t *d),
+                                  a, b, c, d)
 #endif
 
 #ifdef SYS_splice
@@ -12291,13 +12293,17 @@ TARPC_SYSCALL_WRAPPER(epoll_wait, int, (int a, struct epoll_event *b, int c,
 #endif
 
 #ifdef SYS_epoll_pwait
-TARPC_SYSCALL_WRAPPER(epoll_pwait, int, (int a, struct epoll_event *b, int c,
-                      int d, const sigset_t *e), a, b, c, d, e)
+TARPC_SYSCALL_WRAPPER_WITH_SIGSET(epoll_pwait, int,
+                                  (int a, struct epoll_event *b, int c,
+                                   int d, const sigset_t *e),
+                                  a, b, c, d, e)
 #endif
 
 #ifdef SYS_epoll_pwait2
-TARPC_SYSCALL_WRAPPER(epoll_pwait2, int, (int a, struct epoll_event *b, int c,
-                      struct timespec *d, const sigset_t *e), a, b, c, d, e)
+TARPC_SYSCALL_WRAPPER_WITH_SIGSET(epoll_pwait2, int,
+                                  (int a, struct epoll_event *b, int c,
+                                   struct timespec *d, const sigset_t *e),
+                                  a, b, c, d, e)
 #endif
 
 /**

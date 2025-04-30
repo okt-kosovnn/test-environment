@@ -1206,6 +1206,33 @@ TARPC_DECLARE_SYSCALL_WRAPPER_FUNC_BEGIN(_dl, TARPC_LIB_DEFAULT,            \
 TARPC_DECLARE_SYSCALL_WRAPPER_FUNC_END
 
 /**
+ * Macro to define syscall function wrapper content that uses sigset_t
+ * argument and needs sizeof(sigset_t) as the last argument in syscall.
+ *
+ * Note we should use the size of the kernel structure which has size
+ * NSIG/8=64/8=8 not 128 that calculated if we just use sizeof(sigset_t).
+ * This wrapper works for supported ppoll, epoll_pwait and epoll_pwait2
+ * functions but shouldn't work for example for pselect6.
+ *
+ * @param _name     Function name (bind, connect, etc.)
+ * @param _rettype  Return type (according to man _name)
+ * @param _args     Arguments list (according to man _name)
+ * @param ...       Values of arguments
+ */
+#define TARPC_SYSCALL_WRAPPER_WITH_SIGSET(_name, _rettype, _args, ...)      \
+TARPC_DECLARE_SYSCALL_WRAPPER_FUNC_BEGIN(, TARPC_LIB_USE_LIBC,              \
+                                         "libc", _name, _rettype,           \
+                                         _args, ##__VA_ARGS__)              \
+                                                             , NSIG / 8     \
+TARPC_DECLARE_SYSCALL_WRAPPER_FUNC_END                                      \
+                                                                            \
+TARPC_DECLARE_SYSCALL_WRAPPER_FUNC_BEGIN(_dl, TARPC_LIB_DEFAULT,            \
+                                         "dynamic lib", _name, _rettype,    \
+                                         _args, ##__VA_ARGS__)              \
+                                                             , NSIG / 8     \
+TARPC_DECLARE_SYSCALL_WRAPPER_FUNC_END
+
+/**
  * Type of a hook function called just before FD is closed.
  *
  * @note Close hooks do not return error directly and closing function
