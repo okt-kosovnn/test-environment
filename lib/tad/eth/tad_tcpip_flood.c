@@ -152,7 +152,7 @@ tad_tcpip_flood(csap_p csap, const char  *usr_param, tad_pkts *pkts)
 #define TCP_SEQ_OFFSET 4
 #define TCP_CHKSUM_OFFSET 16
 
-    rc = tad_pkt_flatten_copy(pkt, &flat_frame, &frame_size);
+    rc = tad_pkt_flatten_copy(pkt, &flat_frame, &frame_size, TRUE);
 
     if (rc != 0)
     {

@@ -730,7 +730,7 @@ tad_recv_do_action(csap_p csap, tad_action_spec *action_spec,
                 size_t      raw_len = 0;
 
                 rc = tad_pkt_flatten_copy(tad_pkts_first_pkt(low_pkts),
-                                          &raw_pkt, &raw_len);
+                                          &raw_pkt, &raw_len, TRUE);
                 if (rc != 0)
                 {
                     ERROR(CSAP_LOG_FMT "Failed to make flatten copy "
@@ -1541,7 +1541,7 @@ tad_recv_get_packets(csap_p csap, tad_reply_context *reply_ctx, bool wait,
         if (~csap->state & CSAP_STATE_PACKETS_NO_PAYLOAD)
         {
             rc = tad_pkt_flatten_copy(&pkt->payload,
-                                      &payload, &payload_len);
+                                      &payload, &payload_len, FALSE);
             if (rc != 0)
             {
                 ERROR(CSAP_LOG_FMT "Failed to make flatten copy of "

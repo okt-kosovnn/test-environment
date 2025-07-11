@@ -354,12 +354,14 @@ extern void tad_pkt_insert_after_seg(tad_pkt *pkt, tad_pkt_seg *seg,
  * Make flatten copy of a packet to specified memory array or to
  * allocated using TE_ALLOC().
  *
- * @param pkt       Packet
- * @param data      Location of the pointer to memory array
- *                  (if *data is NULL, allocate it using TE_ALLOC())
- * @param len       Location of the memory array length or NULL
- *                  (if *data is not NULL, *len is equal to size
- *                  of buffer provided by caller)
+ * @param pkt            Packet
+ * @param data           Location of the pointer to memory array
+ *                       (if *data is NULL, allocate it using TE_ALLOC())
+ * @param len            Location of the memory array length or NULL
+ *                       (if *data is not NULL, *len is equal to size
+ *                       of buffer provided by caller)
+ * @param warn_empty_pkt Should we warn about attempt to allocate zero buffer
+ *                       for the packet if it has zero length
  *
  * If buffer provided by caller is not sufficient, the buffer is filled
  * in and TE_ESMALLBUF is returned.
@@ -367,7 +369,8 @@ extern void tad_pkt_insert_after_seg(tad_pkt *pkt, tad_pkt_seg *seg,
  * @return Status code.
  */
 extern te_errno tad_pkt_flatten_copy(tad_pkt *pkt,
-                                     uint8_t **data, size_t *len);
+                                     uint8_t **data, size_t *len,
+                                     te_bool warn_useless_empty_pkt);
 
 /**
  * Get the first segment of the packet.

@@ -596,7 +596,8 @@ tad_pkts_alloc(tad_pkts *pkts, unsigned int n_pkts, unsigned int n_segs,
 
 /* See description in tad_pkt.h */
 te_errno
-tad_pkt_flatten_copy(tad_pkt *pkt, uint8_t **data, size_t *len)
+tad_pkt_flatten_copy(tad_pkt *pkt, uint8_t **data, size_t *len,
+                     te_bool warn_empty_pkt)
 {
     size_t          total_len;
     tad_pkt_seg    *seg;
@@ -609,7 +610,7 @@ tad_pkt_flatten_copy(tad_pkt *pkt, uint8_t **data, size_t *len)
 
     total_len = (len == NULL || *len == 0) ? tad_pkt_len(pkt) : *len;
     if (*data == NULL)
-        *data = TE_ALLOC(total_len);
+        *data = TE_ALLOC((total_len == 0 && !warn_empty_pkt) ? 1 :total_len);
 
     ptr = *data;
     rest_len = total_len;
