@@ -2876,3 +2876,41 @@ tapi_cfg_del_user(const char *agent, int uid)
     return cfg_del_instance_fmt(false, "/agent:%s/user:%s", agent,
                                 user_name.ptr);
 }
+
+/* See description in tapi_cfg.h */
+te_errno
+tapi_cfg_get_nonnum_user_uid(const char *agent,
+                             const char *base_username, uint32_t *uid)
+{
+    te_errno rc;
+
+    if ((rc = cfg_get_uint32(uid, "/agent:%s/user:%s%s%s/uid:", agent,
+                             TE_USER_PREFIX, TE_USER_NONNUM_AFFIX,
+                             base_username)) != 0)
+    {
+        ERROR("%s(): Failed (%r) to get uid for user with name %s%s%s",
+              __FUNCTION__, rc, TE_USER_PREFIX, TE_USER_NONNUM_AFFIX,
+              base_username);
+    }
+
+    return rc;
+}
+
+/* See description in tapi_cfg.h */
+te_errno
+tapi_cfg_get_nonnum_user_gid(const char *agent,
+                             const char *base_username, uint32_t *gid)
+{
+    te_errno rc;
+
+    if ((rc = cfg_get_uint32(gid, "/agent:%s/user:%s%s%s/gid:", agent,
+                             TE_USER_PREFIX, TE_USER_NONNUM_AFFIX,
+                             base_username)) != 0)
+    {
+        ERROR("%s(): Failed (%r) to get gid for user with name %s%s%s",
+              __FUNCTION__, rc, TE_USER_PREFIX, TE_USER_NONNUM_AFFIX,
+              base_username);
+    }
+
+    return rc;
+}

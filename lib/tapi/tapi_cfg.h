@@ -1290,6 +1290,32 @@ extern te_errno tapi_cfg_add_user_if_needed(const char *agent, int uid,
  */
 extern te_errno tapi_cfg_del_user(const char *agent, int uid);
 
+/**
+ * Get non-numeric user uid.
+ *
+ * @param[in]  agent          Test agent name.
+ * @param[in]  base_username  User name.
+ * @param[out] uid            UID
+ *
+ * @return Status code.
+ */
+extern te_errno tapi_cfg_get_nonnum_user_uid(const char *agent,
+                                             const char *base_username,
+                                             uint32_t *uid);
+
+/**
+ * Get non-numeric user gid.
+ *
+ * @param[in]  agent          Test agent name.
+ * @param[in]  base_username  User name.
+ * @param[out] gid            GID
+ *
+ * @return Status code.
+ */
+extern te_errno tapi_cfg_get_nonnum_user_gid(const char *agent,
+                                             const char *base_username,
+                                             uint32_t *gid);
+
 #ifdef __cplusplus
 } /* extern "C" */
 #endif
