@@ -122,6 +122,8 @@
 #if defined(HAVE_PWD_H)
 #include <pwd.h>
 #endif
+#include <grp.h>
+#include "te_alloc.h"
 
 /* PAM (Pluggable Authentication Modules) support */
 #if defined(HAVE_SECURITY_PAM_APPL_H) && defined(HAVE_LIBPAM)
@@ -8324,17 +8326,23 @@ check_pid(pid_t pid, const char *cmdline, te_bool check_result)
 }
 
 /**
- * Check if TE username is correct. I.e. TE_USER_PREFIX<some_number>.
+ * Check if TE username is correct.
  *
- * @param username     username
+ * @param[in]  username    username
+ * @param[out] is_num      if username is correct is it numeric
+ *                         i.e. TE_USER_PREFIX<some_number>
  *
- * @return             is username correct
+ * @return                 is username correct
  */
 static te_bool
-te_username_is_correct(const char *username)
+te_username_is_correct(const char *username, te_bool *is_num)
 {
     const char *tmp;
-    te_bool is_numeric;
+    te_bool is_correct = TRUE;
+    te_bool is_numeric = FALSE;
+
+    if (is_num == NULL)
+        is_num = &is_numeric;
 
     if (strncmp(username, TE_USER_PREFIX, strlen(TE_USER_PREFIX)) != 0)
         return FALSE;
@@ -8343,16 +8351,47 @@ te_username_is_correct(const char *username)
     if (*tmp =='\0')
         return FALSE;
 
-    for (is_numeric = TRUE; *tmp !='\0'; tmp++)
+    for (*is_num = TRUE; *tmp !='\0'; tmp++)
     {
         if (!isdigit(*tmp))
         {
-            is_numeric = FALSE;
+            *is_num = FALSE;
             break;
         }
     }
 
-    return is_numeric;
+    if (*is_num)
+        return TRUE;
+
+    if (strncmp(tmp, TE_USER_NONNUM_AFFIX, strlen(TE_USER_NONNUM_AFFIX)) != 0)
+        return FALSE;
+
+    tmp += strlen(TE_USER_NONNUM_AFFIX);
+    if (*tmp =='\0')
+        return FALSE;
+
+    for (is_correct = TRUE; *tmp !='\0'; tmp++)
+    {
+        if (isdigit(*tmp))
+        {
+            continue;
+        }
+        else if (isalpha(*tmp))
+        {
+            continue;
+        }
+        else if (*tmp == '_')
+        {
+            continue;
+        }
+        else
+        {
+            is_correct = FALSE;
+            break;
+        }
+    }
+
+    return is_correct;
 }
 
 /**
@@ -8416,7 +8455,7 @@ user_list(unsigned int gid, const char *oid,
             }
         }
 
-        if (!te_username_is_correct(pwd.pw_name))
+        if (!te_username_is_correct(pwd.pw_name, NULL))
             continue;
 
         if (str.len != 0)
@@ -8602,9 +8641,8 @@ set_change_passwd(char const *user, char const *passwd)
  * @param gid           group identifier (unused)
  * @param oid           full object instance identifier (unused)
  * @param value         Location for the value (OUT)
- * @param user          user name: TE_USER_PREFIX<user_name_prefix_free>;
- *                      if <user_name_prefix_free> is numeric then
- *                      it should coincide with user gid
+ * @param user          Username. It is checked by
+ *                      @b ta_te_username_is_correct().
  *
  * @return              Status code
  */
@@ -8613,11 +8651,12 @@ user_gid_get(unsigned int gid, const char *oid, char *value,
              const char *user)
 {
     struct passwd *pw;
+    te_bool user_is_num;
 
     UNUSED(gid);
     UNUSED(oid);
 
-    if (!te_username_is_correct(user))
+    if (!te_username_is_correct(user, &user_is_num))
         return TE_RC(TE_TA_UNIX, TE_EINVAL);
 
     pw = getpwnam(user);
@@ -8625,6 +8664,13 @@ user_gid_get(unsigned int gid, const char *oid, char *value,
     {
         ERROR("User %s is not found", user);
         return TE_RC(TE_TA_UNIX, TE_ESHCMD);
+    }
+
+    if (user_is_num &&
+        pw->pw_gid !=
+        (gid_t)strtol(user + strlen(TE_USER_PREFIX), NULL, 10))
+    {
+        WARN("User %s unexpectedly has GID %u", user, pw->pw_gid);
     }
 
     TE_SPRINTF(value, "%u", (unsigned int)pw->pw_gid);
@@ -8638,9 +8684,8 @@ user_gid_get(unsigned int gid, const char *oid, char *value,
  * @param gid           group identifier (unused)
  * @param oid           full object instance identifier (unused)
  * @param value         Location for the value (OUT)
- * @param user          user name: TE_USER_PREFIX<user_name_prefix_free>;
- *                      if <user_name_prefix_free> is numeric then
- *                      it should coincide with user uid
+ * @param user          Username. It is checked by
+ *                      @b ta_te_username_is_correct().
  *
  * @return              Status code
  */
@@ -8649,11 +8694,12 @@ user_uid_get(unsigned int gid, const char *oid, char *value,
              const char *user)
 {
     struct passwd *pw;
+    te_bool user_is_num;
 
     UNUSED(gid);
     UNUSED(oid);
 
-    if (!te_username_is_correct(user))
+    if (!te_username_is_correct(user, &user_is_num))
         return TE_RC(TE_TA_UNIX, TE_EINVAL);
 
     pw = getpwnam(user);
@@ -8661,6 +8707,13 @@ user_uid_get(unsigned int gid, const char *oid, char *value,
     {
         ERROR("User %s is not found", user);
         return TE_RC(TE_TA_UNIX, TE_ESHCMD);
+    }
+
+    if (user_is_num &&
+        pw->pw_uid !=
+        (uid_t)strtol(user + strlen(TE_USER_PREFIX), NULL, 10))
+    {
+        WARN("User %s unexpectedly has UID %u", user, pw->pw_uid);
     }
 
     TE_SPRINTF(value, "%u", (unsigned int)pw->pw_uid);
@@ -8674,7 +8727,11 @@ user_uid_get(unsigned int gid, const char *oid, char *value,
  * @param gid           group identifier (unused)
  * @param oid           full object instance identifier (unused)
  * @param value         value string (unused)
- * @param user          user name: te_tester_<uid>
+ * @param user          Username. It is checked by
+ *                      @b ta_te_username_is_correct().
+ *                      If user is numeric then the number will be
+ *                      the UID and GID.
+ *                      Otherwise UID and GID are assigned auomatically.
  *
  * @return              Status code
  */
@@ -8690,54 +8747,148 @@ user_add(unsigned int gid, const char *oid, const char *value,
     pid_t pid;
 
     te_errno     rc;
+    te_bool user_is_num;
 
     UNUSED(gid);
     UNUSED(oid);
     UNUSED(value);
 
+    if (!te_username_is_correct(user, &user_is_num))
+        return TE_RC(TE_TA_UNIX, TE_EINVAL);
+
     if (user_exists(user))
         return TE_RC(TE_TA_UNIX, TE_EEXIST);
 
-    if (!te_username_is_correct(user))
-        return TE_RC(TE_TA_UNIX, TE_EINVAL);
+    if (user_is_num)
+    {
+        uid_str = user + strlen(TE_USER_PREFIX);
 
-    uid_str = user + strlen(TE_USER_PREFIX);
+        /*
+         * We manually add group to be independent from system settings
+         * (one group for all users / each user with its group)
+         * "-f" is used in order not to fail if such group already exists (bug 11813)
+         */
+        argv = (char * const[]){"/usr/sbin/groupadd",
+                                "-f",
+                                "-g", TE_CONST_PTR_CAST(char, uid_str),
+                                TE_CONST_PTR_CAST(char, user),
+                                NULL};
+        pid = te_exec_child("/usr/sbin/groupadd", argv, NULL, -1,
+                            TE_EXEC_CHILD_DEV_NULL_FD,
+                            TE_EXEC_CHILD_DEV_NULL_FD,
+                            TE_EXEC_CHILD_DEV_NULL_FD,
+                            NULL);
+        rc = check_pid(pid, "/usr/sbin/groupadd", TRUE);
+        if (rc != 0)
+            return rc;
 
-    /*
-     * We manually add group to be independent from system settings
-     * (one group for all users / each user with its group)
-     * "-f" is used in order not to fail if such group already exists (bug 11813)
-     */
-    argv = (char * const[]){"/usr/sbin/groupadd",
-                            "-f",
-                            "-g", TE_CONST_PTR_CAST(char, uid_str),
-                            TE_CONST_PTR_CAST(char, user),
-                            NULL};
-    pid = te_exec_child("/usr/sbin/groupadd", argv, NULL, -1,
-                        TE_EXEC_CHILD_DEV_NULL_FD,
-                        TE_EXEC_CHILD_DEV_NULL_FD,
-                        TE_EXEC_CHILD_DEV_NULL_FD,
-                        NULL);
-    rc = check_pid(pid, "/usr/sbin/groupadd", TRUE);
-    if (rc != 0)
-        return rc;
+        TE_SPRINTF(homedir, "/tmp/%s", user);
+        argv = (char *const[]){"/usr/sbin/useradd",
+                               "-d", homedir,
+                               "-g", TE_CONST_PTR_CAST(char, uid_str),
+                               "-u", TE_CONST_PTR_CAST(char, uid_str),
+                               "-m",
+                               TE_CONST_PTR_CAST(char, user),
+                               NULL};
+        pid = te_exec_child("/usr/sbin/useradd", argv, NULL, -1,
+                            TE_EXEC_CHILD_DEV_NULL_FD,
+                            TE_EXEC_CHILD_DEV_NULL_FD,
+                            TE_EXEC_CHILD_DEV_NULL_FD,
+                            NULL);
+        rc = check_pid(pid, "/usr/sbin/useradd", TRUE);
+        if (rc != 0)
+            return rc;
+    }
+    else
+    {
+#if ADDUSER_IS_DEBIAN_LIKE
+        TE_SPRINTF(homedir, "/tmp/%s", user);
 
-    TE_SPRINTF(homedir, "/tmp/%s", user);
-    argv = (char *const[]){"/usr/sbin/useradd",
-                           "-d", homedir,
-                           "-g", TE_CONST_PTR_CAST(char, uid_str),
-                           "-u", TE_CONST_PTR_CAST(char, uid_str),
-                           "-m",
-                           TE_CONST_PTR_CAST(char, user),
-                           NULL};
-    pid = te_exec_child("/usr/sbin/useradd", argv, NULL, -1,
-                        TE_EXEC_CHILD_DEV_NULL_FD,
-                        TE_EXEC_CHILD_DEV_NULL_FD,
-                        TE_EXEC_CHILD_DEV_NULL_FD,
-                        NULL);
-    rc = check_pid(pid, "/usr/sbin/useradd", TRUE);
-    if (rc != 0)
-        return rc;
+        argv = (char *const[]){"/usr/sbin/adduser",
+                               "--home", homedir,
+                               "--disabled-password",
+                               "--gecos", "\"\"",
+                               TE_CONST_PTR_CAST(char, user),
+                               NULL};
+        pid = te_exec_child("/usr/sbin/adduser", argv, NULL, -1,
+                            TE_EXEC_CHILD_DEV_NULL_FD,
+                            TE_EXEC_CHILD_DEV_NULL_FD,
+                            TE_EXEC_CHILD_DEV_NULL_FD,
+                            NULL);
+
+        rc = check_pid(pid, "/usr/sbin/useradd", TRUE);
+        if (rc != 0)
+            return rc;
+#else
+        struct group gr;
+        struct group *gr_result = NULL;
+        int getgrnam_res;
+        char *gr_buf = NULL;
+        size_t gr_bufsize;
+#define MAX_USER_GID_LEN 16
+        char gid_str[MAX_USER_GID_LEN];
+#undef MAX_USER_GID_LEN
+
+        argv = (char *const[]){"/usr/sbin/groupadd",
+                                "-f",
+                                TE_CONST_PTR_CAST(char, user),
+                                NULL};
+        pid = te_exec_child("/usr/sbin/groupadd", argv, NULL, -1,
+                            TE_EXEC_CHILD_DEV_NULL_FD,
+                            TE_EXEC_CHILD_DEV_NULL_FD,
+                            TE_EXEC_CHILD_DEV_NULL_FD,
+                            NULL);
+
+        rc = check_pid(pid, "/usr/sbin/groupadd", TRUE);
+        if (rc != 0)
+            return rc;
+
+        gr_bufsize = sysconf(_SC_GETGR_R_SIZE_MAX);
+        if (gr_bufsize == -1)
+#define DEFAULT_GETGR_R_SIZE_MAX 1024
+            gr_bufsize = DEFAULT_GETGR_R_SIZE_MAX;
+#undef DEFAULT_GETGR_R_SIZE_MAX
+
+        gr_buf =  TE_ALLOC(gr_bufsize);
+        getgrnam_res = getgrnam_r(user, &gr, gr_buf, gr_bufsize, &gr_result);
+        while (getgrnam_res != 0)
+        {
+            gr_bufsize *= 2;
+            TE_REALLOC(gr_buf, gr_bufsize);
+            getgrnam_res = getgrnam_r(user, &gr, gr_buf, gr_bufsize, &gr_result);
+        }
+
+        if (gr_result == NULL)
+        {
+            ERROR("Failed to get info of group %s using getgrnum_r()");
+            free(gr_buf);
+            return TE_RC(TE_TA_UNIX, TE_ESHCMD);
+        }
+        else
+        {
+            TE_SPRINTF(gid_str, "%u", gr.gr_gid);
+        }
+        free(gr_buf);
+
+        TE_SPRINTF(homedir, "/tmp/%s", user);
+
+        argv = (char *const[]){"/usr/sbin/useradd",
+                               "-d", homedir,
+                               "-g", gid_str,
+                               "-m",
+                               TE_CONST_PTR_CAST(char, user),
+                               NULL};
+        pid = te_exec_child("/usr/sbin/useradd", argv, NULL, -1,
+                            TE_EXEC_CHILD_DEV_NULL_FD,
+                            TE_EXEC_CHILD_DEV_NULL_FD,
+                            TE_EXEC_CHILD_DEV_NULL_FD,
+                            NULL);
+
+        rc = check_pid(pid, "/usr/sbin/useradd", TRUE);
+        if (rc != 0)
+            return rc;
+#endif
+    }
 
 #if TA_USE_PAM
     /** Set (change) password for just added user */
@@ -8769,7 +8920,8 @@ user_add(unsigned int gid, const char *oid, const char *value,
  *
  * @param gid           group identifier (unused)
  * @param oid           full object instance identifier (unused)
- * @param user          user name
+ * @param user          Username. It is checked by
+ *                      @b ta_te_username_is_correct().
  *
  * @return              Status code
  */
@@ -8782,6 +8934,9 @@ user_del(unsigned int gid, const char *oid, const char *user)
 
     UNUSED(gid);
     UNUSED(oid);
+
+    if (!te_username_is_correct(user, NULL))
+        return TE_RC(TE_TA_UNIX, TE_EINVAL);
 
     if (!user_exists(user))
         return TE_RC(TE_TA_UNIX, TE_EEXIST);
