@@ -52,6 +52,7 @@
 
 #include "tapi_cfg_base.h"
 #include "tapi_cfg.h"
+#include <ctype.h>
 
 /** Operations with routing/ARP table */
 enum tapi_cfg_oper {
@@ -2830,31 +2831,87 @@ tapi_cfg_alloc_net_addr_pair(struct sockaddr **addr1, struct sockaddr **addr2,
     return tapi_cfg_alloc_af_net_addr_pair(AF_INET, addr1, addr2, prefix);
 }
 
+/**
+ * Add a new user on TA with given name. TE_USER_PREFIX is added to the name.
+ *
+ * @param agent          Agent on which to create a new user.
+ * @param base_username  User name.
+ *
+ * @return Status code.
+ */
+static te_errno
+tapi_cfg_add_new_user_by_name(const char *agent,
+                              const char *base_username)
+{
+    te_errno rc;
+
+    if ((rc = cfg_add_instance_fmt(NULL, CVT_NONE, NULL,
+                                   "/agent:%s/user:%s%s", agent,
+                                   TE_USER_PREFIX, base_username)) != 0)
+    {
+        ERROR("%s(): Failed (%r) to add user with name %s%s",
+              __FUNCTION__, rc, TE_USER_PREFIX, base_username);
+    }
+
+    return rc;
+}
+
 /* See description in tapi_cfg.h */
 te_errno
 tapi_cfg_add_new_user(const char *agent, int uid)
 {
-    te_string user_name = TE_STRING_INIT_STATIC(1024);
+    te_string base_username = TE_STRING_INIT_STATIC(1024);
 
-    te_string_append(&user_name, "%s%d", TE_USER_PREFIX, uid);
+    te_string_append(&base_username, "%d", uid);
 
-    return cfg_add_instance_fmt(NULL, CVT_NONE, NULL,
-                                "/agent:%s/user:%s", agent,
-                                user_name.ptr);
+    return tapi_cfg_add_new_user_by_name(agent, base_username.ptr);
 }
 
+/* See description in tapi_cfg.h */
 te_errno
-tapi_cfg_add_user_if_needed(const char *agent, int uid, bool *added)
+tapi_cfg_add_new_nonnum_user(const char *agent,
+                             const char *base_username)
+{
+    te_string nonnum_username = TE_STRING_INIT_STATIC(1024);
+
+    te_string_append(&nonnum_username, "%s%s", TE_USER_NONNUM_AFFIX,
+                     base_username);
+
+    return tapi_cfg_add_new_user_by_name(agent, nonnum_username.ptr);
+}
+
+/**
+ * Add a user on TA if no such user already exists with given name.
+ * TE_USER_PREFIX is added to the name.
+ *
+ * @p added is set to @c true if a user has been added and to @c false
+ * if it existed already, so that the caller might decide whether it
+ * should call tapi_cfg_del_user_by_name().
+ *
+ * Refer to tapi_cfg_add_new_user_by_name() for details concerning user
+ * creation.
+ *
+ * @param[in]  agent          Agent on which to create a new user.
+ * @param[in]  base_username  User name.
+ * @param[out] added          A flag to set if user has been created
+ *                            (may be @c NULL).
+ *
+ * @return Status code.
+ */
+static te_errno
+tapi_cfg_add_user_if_needed_by_name(const char *agent,
+                                    const char *base_username,
+                                    bool *added)
 {
     te_errno rc;
 
     if (added != NULL)
         *added = false;
-    if (cfg_find_fmt(NULL, "/agent:%s/user:%s%d", agent,
-                     TE_USER_PREFIX, uid) == 0)
+    if (cfg_find_fmt(NULL, "/agent:%s/user:%s%s", agent,
+                     TE_USER_PREFIX, base_username) == 0)
         return 0;
 
-    rc = tapi_cfg_add_new_user(agent, uid);
+    rc = tapi_cfg_add_new_user_by_name(agent, base_username);
     if (rc == 0)
     {
         if (added != NULL)
@@ -2864,17 +2921,71 @@ tapi_cfg_add_user_if_needed(const char *agent, int uid, bool *added)
     return rc;
 }
 
+/* See description in tapi_cfg.h */
+te_errno
+tapi_cfg_add_user_if_needed(const char *agent, int uid, bool *added)
+{
+    te_string base_username = TE_STRING_INIT_STATIC(1024);
+
+    te_string_append(&base_username, "%d", uid);
+
+    return tapi_cfg_add_user_if_needed_by_name(agent,
+               base_username.ptr, added);
+}
+
+/* See description in tapi_cfg.h */
+te_errno
+tapi_cfg_add_nonnum_user_if_needed(const char *agent,
+                                   const char *base_username,
+                                   bool *added)
+{
+    te_string nonnum_username = TE_STRING_INIT_STATIC(1024);
+
+    te_string_append(&nonnum_username, "%s%s", TE_USER_NONNUM_AFFIX,
+                     base_username);
+
+    return tapi_cfg_add_user_if_needed_by_name(agent,
+               nonnum_username.ptr, added);
+}
+
+/**
+ * Remove a user previously added by tapi_cfg_add_new_user_by_name().
+ *
+ * @param agent          Agent on which to remove a user.
+ * @param base_username  User name.
+ *
+ * @return Status code
+ */
+static te_errno
+tapi_cfg_del_user_by_name(const char *agent,
+                          const char *base_username)
+{
+    return cfg_del_instance_fmt(false, "/agent:%s/user:%s%s", agent,
+                                TE_USER_PREFIX, base_username);
+}
 
 /* See description in tapi_cfg.h */
 te_errno
 tapi_cfg_del_user(const char *agent, int uid)
 {
-    te_string user_name = TE_STRING_INIT_STATIC(1024);
+    te_string base_username = TE_STRING_INIT_STATIC(1024);
 
-    te_string_append(&user_name, "%s%d", TE_USER_PREFIX, uid);
+    te_string_append(&base_username, "%d", uid);
 
-    return cfg_del_instance_fmt(false, "/agent:%s/user:%s", agent,
-                                user_name.ptr);
+    return tapi_cfg_del_user_by_name(agent, base_username.ptr);
+}
+
+/* See description in tapi_cfg.h */
+te_errno
+tapi_cfg_del_nonnum_user(const char *agent,
+                         const char *base_username)
+{
+    te_string nonnum_username = TE_STRING_INIT_STATIC(1024);
+
+    te_string_append(&nonnum_username, "%s%s", TE_USER_NONNUM_AFFIX,
+                     base_username);
+
+    return tapi_cfg_del_user_by_name(agent, nonnum_username.ptr);
 }
 
 /* See description in tapi_cfg.h */

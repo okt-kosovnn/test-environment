@@ -1251,6 +1251,21 @@ extern te_errno tapi_cfg_alloc_af_net_addr_pair(int af,
                                                 int *prefix);
 
 /**
+ * Add a new nonnumeric user on TA with given name.
+ *
+ * @note User name will be TE_USER_PREFIX + TE_USER_NONNUM_AFFIX +
+ *       base_username.
+ *       User will be created in a new group named after the user.
+ *
+ * @param agent          Agent on which to create a new user.
+ * @param base_username  User name.
+ *
+ * @return Status code
+ */
+extern te_errno tapi_cfg_add_new_nonnum_user(const char *agent,
+                                             const char *base_username);
+
+/**
  * Add a new user on TA.
  *
  * @note User name will be TE_USER_PREFIX + uid, TA requires this format.
@@ -1259,9 +1274,31 @@ extern te_errno tapi_cfg_alloc_af_net_addr_pair(int af,
  *
  * @param agent       Agent on which to create a new user.
  * @param uid         User ID.
+ *
+ * @return Status code
  */
 extern te_errno tapi_cfg_add_new_user(const char *agent, int uid);
 
+/**
+ * Add a user on TA if no such user already exists with given name.
+ *
+ * @p added is set to @c true if a user has been added and to @c false
+ * if it existed already, so that the caller might decide whether it
+ * should call tapi_cfg_del_nonnum_user().
+ *
+ * Refer to tapi_cfg_add_new_nonnum_user() for details concerning user
+ * creation.
+ *
+ * @param[in]  agent          Agent on which to create a new user.
+ * @param[in]  base_username  User name.
+ * @param[out] added          A flag to set if user has been created
+ *                            (may be @c NULL).
+ *
+ * @return Status code.
+ */
+extern te_errno tapi_cfg_add_nonnum_user_if_needed(const char *agent,
+                                                   const char *base_username,
+                                                   bool *added);
 
 /**
  * Add a user on TA if no such user already exists.
@@ -1283,10 +1320,23 @@ extern te_errno tapi_cfg_add_user_if_needed(const char *agent, int uid,
                                             bool *added);
 
 /**
+ * Remove a user previously added by tapi_cfg_add_new_nonnum_user().
+ *
+ * @param agent          Agent on which to remove a user.
+ * @param base_username  User name.
+ *
+ * @return Status code
+ */
+extern te_errno tapi_cfg_del_nonnum_user(const char *agent,
+                                         const char *base_username);
+
+/**
  * Remove a user previously added by tapi_cfg_add_new_user().
  *
  * @param agent       Agent on which to remove a user.
  * @param uid         User ID.
+ *
+ * @return Status code
  */
 extern te_errno tapi_cfg_del_user(const char *agent, int uid);
 
