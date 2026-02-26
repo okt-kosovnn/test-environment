@@ -372,4 +372,75 @@ extern te_errno agent_key_generate(agent_key_manager manager,
                                    const char *user,
                                    const char *private_key_file);
 
+/**
+ * Check if TE username is correct. That means it is either numeric
+ * i.e. TE_USER_PREFIX + <some_number> or non-numeric i.e.
+ * TE_USER_PREFIX + TE_USER_NONNUM_AFFIX + base_username.
+ * Where base_username contains only letters, numbers and underscores.
+ *
+ * @param[in]  username    username
+ * @param[out] is_num      if username is numeric
+ *                         i.e. TE_USER_PREFIX<some_number>
+ *
+ * @return                 is username correct
+ */
+te_bool ta_te_username_is_correct(const char *username, te_bool *is_num);
+
+/**
+ * Get list of usernames that corresponds @b ta_te_username_is_correct()
+ * separated by spaces.
+ *
+ * @param list          location for the list pointer
+ *
+ * @return              Status code:
+ * @retval 0                success
+ * @retval TE_ENOMEM        cannot allocate memory
+ */
+extern te_errno ta_user_list(char **list);
+
+/**
+ * Get tester user gid.
+ *
+ * @param[out] gid      User GID.
+ * @param[in]  user     Username. It is checked by
+ *                      @b ta_te_username_is_correct().
+ *
+ * @return              Status code
+ */
+extern te_errno ta_user_gid_get(gid_t *gid, const char *user);
+
+/**
+ * Get tester user uid.
+ *
+ * @param[out] uid      User UID.
+ * @param[in]  user     Username. It is checked by
+ *                      @b ta_te_username_is_correct().
+ *
+ * @return              Status code
+ */
+extern te_errno ta_user_uid_get(uid_t *uid, const char *user);
+
+/**
+ * Add tester user.
+ *
+ * @param user          Username. It is checked by
+ *                      @b ta_te_username_is_correct().
+ *                      If user is numeric then the number will be
+ *                      the UID and GID.
+ *                      Otherwise UID and GID are assigned auomatically.
+ *
+ * @return              Status code
+ */
+extern te_errno ta_user_add(const char *user);
+
+/**
+ * Delete tester user.
+ *
+ * @param user          Username. It is checked by
+ *                      @b ta_te_username_is_correct().
+ *
+ * @return              Status code
+ */
+extern te_errno ta_user_del(const char *user);
+
 #endif /* __TE_AGENTLIB_H__ */
